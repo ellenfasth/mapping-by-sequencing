@@ -1,4 +1,4 @@
-import os
+import os, sys
 import pandas as pd
 from modules.config_parsers import *
 
@@ -10,13 +10,15 @@ log_dir = config["log_dir"]
 # ALL = SAMPLES + [CONTROL]
 
 datasets_tab = pd.read_table("data/datasets.tab", sep = "\t", comment='#')
+# change library col type to string for wildcard constraints 
+datasets_tab['library'] = datasets_tab['library'].astype(str) 
 CONTROL, SAMPLES = get_control_samples(datasets_tab)
 ALL = SAMPLES + [CONTROL]
 
 wildcard_constraints:
     sample      = '|'.join([re.escape(x) for x in list(set(datasets_tab['sample']))]),
     sample_ctrl = '|'.join([re.escape(x) for x in list(set(datasets_tab['sample']))]),
-    #library     = '|'.join([re.escape(x) for x in list(set(datasets_tab['library']))])
+    library     = '|'.join([re.escape(x) for x in list(set(datasets_tab['library']))])
 
 rule all:
     input:

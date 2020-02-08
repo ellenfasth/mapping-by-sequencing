@@ -1,10 +1,6 @@
 sample	sample_type	library	R1	R2
-A	mutated	1	A_L001_R1.fastq.gz	A_L001_R2.fastq.gz
-A	mutated	2	A_L002_R1.fastq.gz	A_L002_R2.fastq.gz
-#A	mutated	2	A_L002_R1.fastq.gz	A_L002_R2.fastq.gz
-B	mutated	1	B_L001_R1.fastq.gz	B_L001_R2.fastq.gz
-#B	mutated	2	B_L002_R1.fastq.gz	B_L002_R2.fastq.gz
-C	mutated	1	C_L001_R1.fastq.gz	C_L001_R2.fastq.gz
-#C	mutated	2	C_L002_R1.fastq.gz	C_L002_R2.fastq.gz
-CTRL	control	1	CTRL_L001_R1.fastq.gz	CTRL_L001_R2.fastq.gz
-#CTRL	control	2	CTRL_L001_R1.fastq.gz	CTRL_L001_R2.fastq.gz
+D1K	control	1	D1K_BDSW192042656-1a_HWTNMDSXX_L1_1.fq.gz	D1K_BDSW192042656-1a_HWTNMDSXX_L1_2.fq.gz
+D2K	mutated	1	D2K_BDSW192042657-1a_HWTNMDSXX_L2_1.fq.gz	D2K_BDSW192042657-1a_HWTNMDSXX_L2_2.fq.gz
+D3K	mutated	1	D3K_BDSW192042658-1a_HWTNMDSXX_L2_1.fq.gz	D3K_BDSW192042658-1a_HWTNMDSXX_L2_2.fq.gz
+D4K	mutated	1	D4K_BDSW192042659-1a_HWTNMDSXX_L1_1.fq.gz	D4K_BDSW192042659-1a_HWTNMDSXX_L1_1.fq.gz
+D5K	mutated	1	D5K_BDSW192042660-1a_HWTNMDSXX_L2_1.fq.gz	D5K_BDSW192042660-1a_HWTNMDSXX_L2_2.fq.gz

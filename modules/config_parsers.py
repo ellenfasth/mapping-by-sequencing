@@ -1,4 +1,4 @@
-import os
+import os, sys
 
 def check_tmp_dir(dir):
     if os.getenv("TMP"):
@@ -14,7 +14,7 @@ def get_datasets_for_symlinks(df, sample = None, library = None, d = None, infol
             if getattr(row, "sample") == sample:
                 dataset_file = os.path.join(outfolder, getattr(row, d))
         else:
-            if getattr(row, "sample") == sample and getattr(row, "library") == int(library):
+            if getattr(row, "sample") == sample and getattr(row, "library") == library:
                 dataset_file = os.path.join(outfolder, getattr(row, d))
     return dataset_file
 
