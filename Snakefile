@@ -103,7 +103,7 @@ rule map:
         # f1 = expand("data/filtered/{sample_ctrl}.R1.fastq.gz", sample_ctrl=ALL),
         # f2 = expand("data/filtered/{sample_ctrl}.R2.fastq.gz", sample_ctrl=ALL)
     output:
-        temp(sam = "results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample}_{library}_OUT.sam.gz")
+        sam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample}_{library}_OUT.sam.gz")
         #sam = "results/{sample_ctrl}_{library}/map/{sample_ctrl}_{library}.sam"
     # params:
     #     bwa_index = lambda wildcards, input: 
