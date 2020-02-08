@@ -1,0 +1,10 @@
+sample	sample_type	library	R1	R2
+A	mutated	1	A_L001_R1.fastq.gz	A_L001_R2.fastq.gz
+A	mutated	2	A_L002_R1.fastq.gz	A_L002_R2.fastq.gz
+#A	mutated	2	A_L002_R1.fastq.gz	A_L002_R2.fastq.gz
+B	mutated	1	B_L001_R1.fastq.gz	B_L001_R2.fastq.gz
+#B	mutated	2	B_L002_R1.fastq.gz	B_L002_R2.fastq.gz
+C	mutated	1	C_L001_R1.fastq.gz	C_L001_R2.fastq.gz
+#C	mutated	2	C_L002_R1.fastq.gz	C_L002_R2.fastq.gz
+CTRL	control	1	CTRL_L001_R1.fastq.gz	CTRL_L001_R2.fastq.gz
+#CTRL	control	2	CTRL_L001_R1.fastq.gz	CTRL_L001_R2.fastq.gz

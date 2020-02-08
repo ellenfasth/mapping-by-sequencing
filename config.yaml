@@ -1,0 +1,18 @@
+results:    "results"
+map_dir:    "map"
+log_dir:    "logs"
+tmp_dir:    "/tmp"
+workdir:    "test"
+
+read_processing:
+    trimmomatic:
+        options: "-phred33"
+        processing_options: "LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+        java_cmd: "java"
+        java_vm_mem: "4G"
+        threads: 4
+
+map:
+    gmap_db_dir:        "gmap_db"
+    gmap_threads:       4
+    gmap_remap_threads: 4
