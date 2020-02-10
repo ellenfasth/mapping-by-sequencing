@@ -102,21 +102,22 @@ rule make_bwa_db:
     input:
         ref_fasta = "data/reference_genomes/Arabidopsis_thaliana.fa"
     output:
-        bwa_db    = "data/reference_genomes/genome_db/Arabidopsis_thaliana.fa.amb"
+        bwa_index    = "data/reference_genomes/genome_db/Arabidopsis_thaliana.fa.amb"
     run:
         shell("bwa index {input.ref_fasta}")
 
 rule map:
     input:
         f1 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
-        f2 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz"
+        f2 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz",
+        bwa_index = "data/reference_genomes/genome_db/Arabidopsis_thaliana.fa.amb"
         # f1 = expand("data/filtered/{sample_ctrl}.R1.fastq.gz", sample_ctrl=ALL),
         # f2 = expand("data/filtered/{sample_ctrl}.R2.fastq.gz", sample_ctrl=ALL)
     output:
         sam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample}_{library}_OUT.sam.gz")
         #sam = "results/{sample_ctrl}_{library}/map/{sample_ctrl}_{library}.sam"
-    # params:
-    #     bwa_index = lambda wildcards, input: 
+    params:
+        bwa_index = lambda wildcards, input: input.bwa_index.replace(".amb", "")
     run:
         shell("bwa mem {params.bwa_index} {input.f1} {input.f2}")
 
@@ -142,10 +143,12 @@ rule merge_bam:
         merged_bam = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam",
         merged_bam_index = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam.bai"
     log: log_dir + "/{sample_ctrl}/{sample_ctrl}_merge_bam.log"
-    #conda: "envs/samtools_biopython.yaml"
+    params:
+        TMP = check_tmp_dir("/tmp"),
     shell:
         """
-        samtools merge {output.merged_bam} {input} &> {log}
+        samtools merge {params.TMP}/{output.merged_bam} {input} &> {log}
+        samtools sort -T {params.TMP}/{wildcards.sample_ctrl} -o {output.merged_bam} {params.TMP}/{output.merged_bam}
         samtools index {output.merged_bam} {output.merged_bam_index}
         """
 
