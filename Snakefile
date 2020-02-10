@@ -98,6 +98,14 @@ rule trimmomatic:
         shell("export tap=$(which trimmomatic | sed 's/bin\/trimmomatic/share\/trimmomatic\/adapters\/TruSeq3-PE.fa/g'); trimmomatic PE {params.options} -threads {threads} {input.R1} {input.R2} {params.out1P} {params.out1U} {params.out2P} {params.out2U} ILLUMINACLIP:$tap:2:30:10 {params.processing_options} &> {log}")
         shell("zcat {params.out1U} {params.out2U} | gzip > {output.out1U} && rm {params.out1U} {params.out2U}")
 
+rule make_bwa_db:
+    input:
+        ref_fasta = "data/reference_genomes/Arabidopsis_thaliana.fa"
+    output:
+        bwa_db    = "data/reference_genomes/genome_db/Arabidopsis_thaliana.fa.amb"
+    run:
+        shell("bwa index {input.ref_fasta}")
+
 rule map:
     input:
         f1 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
