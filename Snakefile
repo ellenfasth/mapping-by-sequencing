@@ -165,10 +165,12 @@ rule SNP_calling:
     params:
         ref = "data/reference_genomes/Arabidopsis_thaliana.fa"
     run:
-        shell("samtools mpileup -Q 30 -C 50 -P Illumina \
-                -t DP,DV,INFO/DPR,DP4,SP,DV \
-                -Buf {params.ref} {input.bam} \
-                | bcftools view -vcg --types snps > {output.vcf}")
+        shell("bcftools mpileup -d 1000 -Ou -a FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,FORMAT/SCR,INFO/AD,INFO/ADF,INFO/ADR,INFO/SCR -f {params.ref} {input.bam} | \
+                bcftools call -mv > {output.vcf}")
+        # shell("samtools mpileup -Q 30 -C 50 -P Illumina \
+        #         -t DP,DV,INFO/DPR,DP4,SP,DV \
+        #         -Buf {params.ref} {input.bam} \
+        #         | bcftools view -vcg --types snps > {output.vcf}")
 
 rule filter_SNPs:
     input:
