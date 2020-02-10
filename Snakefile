@@ -102,24 +102,26 @@ rule make_bwa_db:
     input:
         ref_fasta = "data/reference_genomes/Arabidopsis_thaliana.fa"
     output:
-        bwa_index    = "data/reference_genomes/genome_db/Arabidopsis_thaliana.fa.amb"
+        bwa_index    = "data/reference_genomes/Arabidopsis_thaliana.fa.amb"
     run:
         shell("bwa index {input.ref_fasta}")
+        shell("mv ")
 
 rule map:
     input:
         f1 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
         f2 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz",
-        bwa_index = "data/reference_genomes/genome_db/Arabidopsis_thaliana.fa.amb"
+        bwa_index = "data/reference_genomes/Arabidopsis_thaliana.fa.amb"
         # f1 = expand("data/filtered/{sample_ctrl}.R1.fastq.gz", sample_ctrl=ALL),
         # f2 = expand("data/filtered/{sample_ctrl}.R2.fastq.gz", sample_ctrl=ALL)
     output:
         sam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample}_{library}_OUT.sam.gz")
         #sam = "results/{sample_ctrl}_{library}/map/{sample_ctrl}_{library}.sam"
     params:
-        bwa_index = lambda wildcards, input: input.bwa_index.replace(".amb", "")
+        bwa_index = lambda wildcards, input: input.bwa_index.replace(".amb", ""),
+        threads = 10
     run:
-        shell("bwa mem {params.bwa_index} {input.f1} {input.f2}")
+        shell("bwa mem -t {params.threads} {params.bwa_index} {input.f1} {input.f2} | gzip - > {output.sam}")
 
 rule sam2bam:
     input:
@@ -129,12 +131,13 @@ rule sam2bam:
         bam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample_ctrl}_{library}_OUT-sorted.bam")
     params:
         TMP = check_tmp_dir("/tmp"),
+        uncompressed_sam  = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.sam".format(wildcards.sample_ctrl)),
         first_bam  = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.bam".format(wildcards.sample_ctrl)),
         sorted_bam = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.sorted.bam".format(wildcards.sample_ctrl))
     run:
-        shell("samtools view -bS -o {params.TMP}/{params.first_bam} {input.sam}")
-        shell("samtools sort -T {params.TMP}/{wildcards.sample_ctrl} -o {params.TMP}/{params.sorted_bam} {params.first_bam}")
-        shell("samtools rmdup -s {output.bam} {params.sorted_bam}")
+        shell("zcat {input.sam} > {params.uncompressed_sam} && samtools view -bS -o {params.first_bam} {params.uncompressed_sam}")
+        shell("samtools sort -T {params.TMP}/{wildcards.sample_ctrl} -o {params.sorted_bam} {params.first_bam}")
+        shell("samtools rmdup -s {params.sorted_bam} {output.bam}")
 
 rule merge_bam:
     input:
@@ -142,13 +145,15 @@ rule merge_bam:
     output:
         merged_bam = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam",
         merged_bam_index = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam.bai"
-    log: log_dir + "/{sample_ctrl}/{sample_ctrl}_merge_bam.log"
+    #log: log_dir + "/{sample_ctrl}/{sample_ctrl}_merge_bam.log"
     params:
         TMP = check_tmp_dir("/tmp"),
+        temp_merged_bam = lambda wildcards, output: os.path.split(output.merged_bam)[1]
     shell:
         """
-        samtools merge {params.TMP}/{output.merged_bam} {input} &> {log}
-        samtools sort -T {params.TMP}/{wildcards.sample_ctrl} -o {output.merged_bam} {params.TMP}/{output.merged_bam}
+        # &> {log}
+        samtools merge -f {params.TMP}/{params.temp_merged_bam} {input}
+        samtools sort -T {params.TMP}/{wildcards.sample_ctrl} -o {output.merged_bam} {params.TMP}/{params.temp_merged_bam}
         samtools index {output.merged_bam} {output.merged_bam_index}
         """
 
@@ -158,7 +163,7 @@ rule SNP_calling:
     output:
         vcf = "results/{sample_ctrl}/variant_calling/{sample_ctrl}.vcf"
     params:
-        ref = "ARABIDOPSIS_REF.fa"
+        ref = "data/reference_genomes/Arabidopsis_thaliana.fa"
     run:
         shell("samtools mpileup -Q 30 -C 50 -P Illumina \
                 -t DP,DV,INFO/DPR,DP4,SP,DV \
