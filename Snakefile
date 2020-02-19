@@ -1,6 +1,7 @@
 import os, sys
 import pandas as pd
 from modules.config_parsers import *
+from modules.utils import *
 
 configfile: "data/config.yaml"
 log_dir = config["log_dir"]
@@ -23,7 +24,8 @@ wildcard_constraints:
 rule all:
     input:
         fastqc_raw_outputs(datasets_tab=datasets_tab),
-        expand("results/final/all_vs_{ctrl}.vcf", ctrl=CONTROL)
+        expand("results/final/all_vs_{ctrl}_ann.vcf", ctrl=CONTROL),
+        expand("results/{sample}/variant_calling/{sample}_filt.vcf", sample=SAMPLES),
         # mutant_ann_vcf = expand("annotations/{sample}_{ctrl}_ann.vcf", sample=SAMPLES, ctrl=CONTROL),
         # control_filt_vcf = expand("variant_calling/{ctrl}_filt.vcf", ctrl=CONTROL),
 
@@ -119,7 +121,7 @@ rule map:
         #sam = "results/{sample_ctrl}_{library}/map/{sample_ctrl}_{library}.sam"
     params:
         bwa_index = lambda wildcards, input: input.bwa_index.replace(".amb", ""),
-        threads = 10
+        threads = 4
     run:
         shell("bwa mem -t {params.threads} {params.bwa_index} {input.f1} {input.f2} | gzip - > {output.sam}")
 
@@ -178,24 +180,46 @@ rule filter_SNPs:
     output:
         vcf = "results/{sample_ctrl}/variant_calling/{sample_ctrl}_filt.vcf"
     run:
-        shell("# murt d l inhouse script")
+        filter_vcf(input.vcf, output.vcf)
 
 rule get_mutant_specific_SNPs:
     input:
-        mutant_snps  = expand("results/{sample}/variant_calling/{sample}_filt.vcf", sample=SAMPLES),
+        mutant_snps  = "results/{sample}/variant_calling/{sample}_filt.vcf",
         control_snps = expand("results/{ctrl}/variant_calling/{ctrl}_filt.vcf", ctrl=CONTROL)
     output:
-        vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf"
+        vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz"
     run:
-        shell("subtractBed -a {input.mutant_snps} -b {input.control_snps} > {output.vcf}")
+        shell("subtractBed -header -a {input.mutant_snps} -b {input.control_snps} | bgzip -c > {output.vcf}")
+
+rule bgzip_ctrl:
+    input:
+        vcf_ctrl = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf"
+    output:
+        vcf_ctrl = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz",
+        vcf_ctrl_index = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz.csi",
+    run:
+        shell("bgzip < {input.vcf_ctrl} > {output.vcf_ctrl}")
+        shell("bcftools index -o {output.vcf_ctrl_index} {output.vcf_ctrl}")
+
+rule index_VCF:
+    input:
+        single_vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz",
+    output:
+        index_vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz.csi"
+    #conda: "envs/bcftools.yaml"
+    message: "Compressing and indexing {input.single_vcf}"
+    run:
+        shell("bcftools index -o {output.index_vcf} {input.single_vcf}")
 
 rule merge_mutant_specific_SNPs:
     input:
-        vcf = expand("results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf", sample=SAMPLES, ctrl=CONTROL)
+        vcf = expand("results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz", sample=SAMPLES, ctrl=CONTROL),
+        index_vcf = expand("results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz.csi", sample=SAMPLES, ctrl=CONTROL),
+        vcf_ctrl = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz"
     output:
-        vcf = "results/final/all_vs_{ctrl}.vcf"
+        merged_vcf = "results/final/all_vs_{ctrl}.vcf"
     run:
-        shell("bcftools merge {input.single_vcf_list} -O v -o {output.merged_vcf}")
+        shell("bcftools merge {input} -O v -o {output.merged_vcf}")
 
 rule annotate_mutant_specific_SNPs:
     input:
