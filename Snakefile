@@ -199,7 +199,7 @@ rule bgzip_ctrl:
         vcf_ctrl_index = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz.csi",
     run:
         shell("bgzip < {input.vcf_ctrl} > {output.vcf_ctrl}")
-        shell("bcftools index -o {output.vcf_ctrl_index} {output.vcf_ctrl}")
+        shell("bcftools index -f -o {output.vcf_ctrl_index} {output.vcf_ctrl}")
 
 rule index_VCF:
     input:
@@ -209,7 +209,7 @@ rule index_VCF:
     #conda: "envs/bcftools.yaml"
     message: "Compressing and indexing {input.single_vcf}"
     run:
-        shell("bcftools index -o {output.index_vcf} {input.single_vcf}")
+        shell("bcftools index -f -o {output.index_vcf} {input.single_vcf}")
 
 rule merge_mutant_specific_SNPs:
     input:
@@ -219,7 +219,7 @@ rule merge_mutant_specific_SNPs:
     output:
         merged_vcf = "results/final/all_vs_{ctrl}.vcf"
     run:
-        shell("bcftools merge {input} -O v -o {output.merged_vcf}")
+        shell("bcftools merge {input.vcf_ctrl} {input.vcf} -O v -o {output.merged_vcf}")
 
 rule annotate_mutant_specific_SNPs:
     input:
@@ -227,4 +227,4 @@ rule annotate_mutant_specific_SNPs:
     output:
         vcf = "results/final/all_vs_{ctrl}_ann.vcf"
     run:
-        shell("snpEff Arabidopsis_thaliana {input.vcf}")
+        shell("snpEff Arabidopsis_thaliana {input.vcf} > {output.vcf}")
