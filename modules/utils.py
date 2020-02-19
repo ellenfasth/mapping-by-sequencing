@@ -15,7 +15,7 @@ def get_AF(INFO):
 def filter_vcf(vcf_file, vcf_filt_file):
     """
     Filter VCF according to:
-    - AF > 30%
+    - AD[snp_index]/DP > 30%
     - keep only SNPs which has G -> A or C -> T
     
 FORMAT/AD   .. Allelic depth (Number=R,Type=Integer)
@@ -45,13 +45,20 @@ INFO/DPR    .. Deprecated in favor of INFO/AD; Number of high-quality bases for 
         else:
             m = l.split()
             REF = m[3]
-            ALT = m[4]
-            INFO = m[7]
-            SAMPLE_INFO = m[-1]
-            AF = get_AF(INFO)
-            if AF == None:
+            ALT = m[4].split(',')
+            if REF == "G" and "A" in ALT:
+                snp_index = ALT.index("A")
+            elif REF == "C" and "T" in ALT:
+                snp_index = ALT.index("T")
+            else:
                 continue
-            if REF == "G" and ALT == "A" or REF == "C" and ALT == "T":
-                if AF >= 0.3:
-                    vcf_filt.write(l)
+            INFO = m[7]
+            FORMAT_DEF = m[8].split(":")
+            AD_index = FORMAT_DEF.index("AD") # here you gotta find the allele you want
+            DP_index = FORMAT_DEF.index("DP")
+            SAMPLE_INFO = m[-1]
+            AD = int(SAMPLE_INFO.split(":")[AD_index].split(',')[snp_index+1])
+            DP = int(SAMPLE_INFO.split(":")[DP_index])
+            if AD/DP >= 0.3:
+                vcf_filt.write(l)
     vcf_filt.close()
