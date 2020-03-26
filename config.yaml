@@ -2,7 +2,7 @@ results:    "results"
 map_dir:    "map"
 log_dir:    "logs"
 tmp_dir:    "/tmp"
-workdir:    "test"
+#workdir:    "test"
 ref_genome: "Arabidopsis_thaliana.fa"
 snpEff_db:  "Arabidopsis_thaliana"
 
