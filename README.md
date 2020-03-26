@@ -1,21 +1,114 @@
 # Mapping-by-sequencing
 
-Mapping by sequencing pipeline
+<!-- TOC START min:2 max:5 link:true asterisk:false update:true -->
+- [Installation](#installation)
+- [Set up working environment](#set-up-working-environment)
+    - [Install conda environment](#install-conda-environment)
+    - [Modules to load on Rackham](#modules-to-load-on-rackham)
+- [Set up a run](#set-up-a-run)
+    - [Reference genome and snpEff database](#reference-genome-and-snpeff-database)
+    - [Parental dataset and mutated datasets](#parental-dataset-and-mutated-datasets)
+- [Test](#test)
+<!-- TOC END -->
 
-## Modules to load on Rackham
+This pipeline is intended to emulate [artMAP](https://github.com/RihaLab/artMAP) and it's been built by following the protocol described in the [artMAP paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6560221/) (please refer specifically to https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6560221/bin/PLD3-3-e00146-s002.pdf).
+
+## Installation
+
+Download this repository to your machine
+
+```bash
+git clone https://github.com/domenico-simone/mapping-by-sequencing.git 
+```
+
+## Set up working environment
+
+This pipeline relies on a bunch of dependencies, namely:
+
+- snakemake
+- FastQC
+- trimmomatic
+- bwa
+- samtools
+- bcftools
+- bedtools
+- snpEff
+
+if you already have these tools installed on your system, please skip to the section [](). If you don't, you can choose one of the following options:
+
+- install them on your own
+- install the conda environment provided in the mapping-by-sequencing repository (please follow instructions [here](#install-conda-environment))
+- if you are working on the UPPMAX/Rackham cluster, all these tools can be loaded as modules (please follow instructions [here](#modules-to-load-on-rackham))
+
+### Install conda environment
+
+```bash
+cd mapping-by-sequencing
+
+conda env create -n mbs -f envs/mbs.yaml
+```
+
+This will create a conda environment named `mbs` which has to be activated every time you want to use the pipeline with one of this commands (depending on your conda installation):
+
+```bash
+conda activate mbs
+
+# if the above fails, use this:
+source activate mbs
+```
+
+When you're done with the pipeline, you may want to deactivate the conda environment with:
+
+```bash
+conda deactivate
+```
+
+### Modules to load on Rackham
 
 These are needed to run the workflow down to SNP calling
 
 ```bash
 module load bioinfo-tools
+module load snakemake
 module load FastQC
 module load trimmomatic
 module load bwa
 module load samtools
 module load bcftools
 module load BEDTools
+module load snpEff
 # others
 ```
+
+## Set up a run
+
+### Reference genome and snpEff database
+
+The reference genome in fasta format should be placed in the folder `data/reference_genomes` and its file name has to be detailed in the `config.yaml` file in the `ref_genome` field.  
+
+The snpEff db matching the reference genome should be already installed in snpEff and its name should be detailed in the `config.yaml` file in the `snpEff_db` field.
+
+**Example**: if your reference genome is included in a file `My_ref_genome.fa` and your snpEff database is called `Genus_species`, the `config.yaml` file should look like:
+
+```
+results:    "results"
+map_dir:    "map"
+log_dir:    "logs"
+tmp_dir:    "/tmp"
+workdir:    "test"
+ref_genome: "My_ref_genome.fa"
+snpEff_db:  "Genus_species"
+
+read_processing:
+    trimmomatic:
+        options: "-phred33"
+        processing_options: "LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:100"
+        java_cmd: "java"
+        java_vm_mem: "4G"
+        threads: 4
+```
+
+### Parental dataset and mutated datasets
 
 ## Test
 
