@@ -7,7 +7,7 @@
     - [Modules to load on Rackham](#modules-to-load-on-rackham)
 - [Set up a run](#set-up-a-run)
     - [Reference genome and snpEff database](#reference-genome-and-snpeff-database)
-    - [Parental dataset and mutated datasets](#parental-dataset-and-mutated-datasets)
+    - [Parental (control) dataset and mutated datasets](#parental-control-dataset-and-mutated-datasets)
 - [Test](#test)
 <!-- TOC END -->
 
@@ -108,7 +108,26 @@ read_processing:
         threads: 4
 ```
 
-### Parental dataset and mutated datasets
+### Parental (control) dataset and mutated datasets
+
+File `data/datasets.tab` should be filled with data about your samples. Its structure is:
+
+```
+sample  sample_type  library  R1              R2
+D1K     control      1        D1K_L1_1.fq.gz  D1K_L1_2.fq.gz
+D2K     mutated      1        D2K_L2_1.fq.gz  D2K_L2_2.fq.gz
+D2K     mutated      2        D2K_L3_1.fq.gz  D2K_L3_2.fq.gz
+D3K     mutated      1        D3K_L2_1.fq.gz  D3K_L2_2.fq.gz
+D4K     mutated      1        D4K_L1_1.fq.gz  D4K_L1_1.fq.gz
+D5K     mutated      1        D5K_L2_1.fq.gz  D5K_L2_2.fq.gz
+```
+
+where
+
+- **sample** is the sample name
+- **sample_type** indicates whether the sample is a control (the parental line) or a mutated line
+- **library** takes into account the fact that a sample can have multiple read datasets (libraries). Eg, in the example above, sample D2K has two libraries.
+- **R1** and **R2** are the name of the R1 and R2 file for each library, assuming they are located in the directory `data/reads`.
 
 ## Test
 
