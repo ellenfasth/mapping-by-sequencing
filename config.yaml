@@ -3,6 +3,8 @@ map_dir:    "map"
 log_dir:    "logs"
 tmp_dir:    "/tmp"
 workdir:    "test"
+ref_genome: "Arabidopsis_thaliana.fa"
+snpEff_db:  "Arabidopsis_thaliana"
 
 read_processing:
     trimmomatic:
@@ -11,8 +13,3 @@ read_processing:
         java_cmd: "java"
         java_vm_mem: "4G"
         threads: 4
-
-map:
-    gmap_db_dir:        "gmap_db"
-    gmap_threads:       4
-    gmap_remap_threads: 4
