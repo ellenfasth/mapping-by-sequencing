@@ -5,6 +5,8 @@ from modules.utils import *
 
 configfile: "config.yaml"
 log_dir = config["log_dir"]
+ref_genome = config["ref_genome"]
+snpEff_db = config["snpEff_db"]
 
 # SAMPLES = ["A", "B", "C"]
 # CONTROL = "CTRL"
