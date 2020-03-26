@@ -3,7 +3,7 @@ import pandas as pd
 from modules.config_parsers import *
 from modules.utils import *
 
-configfile: "data/config.yaml"
+configfile: "config.yaml"
 log_dir = config["log_dir"]
 
 # SAMPLES = ["A", "B", "C"]
@@ -107,7 +107,6 @@ rule make_bwa_db:
         bwa_index    = "data/reference_genomes/Arabidopsis_thaliana.fa.amb"
     run:
         shell("bwa index {input.ref_fasta}")
-        shell("mv ")
 
 rule map:
     input:
