@@ -104,9 +104,9 @@ rule trimmomatic:
 
 rule make_bwa_db:
     input:
-        ref_fasta = "data/reference_genomes/Arabidopsis_thaliana.fa"
+        ref_fasta = "data/reference_genomes/{ref_genome}".format(ref_genome=ref_genome)
     output:
-        bwa_index    = "data/reference_genomes/Arabidopsis_thaliana.fa.amb"
+        bwa_index    = "data/reference_genomes/{ref_genome}.amb".format(ref_genome=ref_genome)
     run:
         shell("bwa index {input.ref_fasta}")
 
@@ -114,7 +114,7 @@ rule map:
     input:
         f1 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
         f2 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz",
-        bwa_index = "data/reference_genomes/Arabidopsis_thaliana.fa.amb"
+        bwa_index = "data/reference_genomes/{ref_genome}.amb".format(ref_genome=ref_genome)
         # f1 = expand("data/filtered/{sample_ctrl}.R1.fastq.gz", sample_ctrl=ALL),
         # f2 = expand("data/filtered/{sample_ctrl}.R2.fastq.gz", sample_ctrl=ALL)
     output:
@@ -166,7 +166,7 @@ rule SNP_calling:
     output:
         vcf = "results/{sample_ctrl}/variant_calling/{sample_ctrl}.vcf"
     params:
-        ref = "data/reference_genomes/Arabidopsis_thaliana.fa"
+        ref = "data/reference_genomes/{ref_genome}".format(ref_genome=ref_genome)
     run:
         shell("bcftools mpileup -d 1000 -Ou -a FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,FORMAT/SCR,INFO/AD,INFO/ADF,INFO/ADR,INFO/SCR -f {params.ref} {input.bam} | \
                 bcftools call -mv > {output.vcf}")
@@ -227,5 +227,6 @@ rule annotate_mutant_specific_SNPs:
         vcf = "results/final/all_vs_{ctrl}.vcf"
     output:
         vcf = "results/final/all_vs_{ctrl}_ann.vcf"
+    params: snpEff_db = snpEff_db
     run:
-        shell("snpEff Arabidopsis_thaliana {input.vcf} > {output.vcf}")
+        shell("snpEff {params.snpEff_db} {input.vcf} > {output.vcf}")
