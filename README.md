@@ -34,7 +34,7 @@ This pipeline relies on a bunch of dependencies, namely:
 - bedtools
 - snpEff
 
-if you already have these tools installed on your system, please skip to the section [](). If you don't, you can choose one of the following options:
+if you already have these tools installed on your system, please skip to the section [Set up a run](#set-up-a-run). If you don't, you can choose one of the following options:
 
 - install them on your own
 - install the conda environment provided in the mapping-by-sequencing repository (please follow instructions [here](#install-conda-environment))
