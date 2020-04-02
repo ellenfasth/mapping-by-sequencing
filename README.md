@@ -8,7 +8,7 @@
 - [Set up a run](#set-up-a-run)
     - [Reference genome and snpEff database](#reference-genome-and-snpeff-database)
     - [Parental (control) dataset and mutated datasets](#parental-control-dataset-and-mutated-datasets)
-- [Test](#test)
+- [Run!](#run)
 <!-- TOC END -->
 
 This pipeline is intended to emulate [artMAP](https://github.com/RihaLab/artMAP) and it's been built by following the protocol described in the [artMAP paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6560221/) (please refer specifically to https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6560221/bin/PLD3-3-e00146-s002.pdf).
@@ -129,70 +129,10 @@ where
 - **library** takes into account the fact that a sample can have multiple read datasets (libraries). Eg, in the example above, sample D2K has two libraries.
 - **R1** and **R2** are the name of the R1 and R2 file for each library, assuming they are located in the directory `data/reads`.
 
-## Test
+## Run!
 
 ```bash
-snakemake -C workdir=test -nrp
+snakemake -rp -j 10
 ```
 
-```bash
-snakemake -nrp results/D1K/map/D1K_OUT-sorted.bam results/D5K/map/D5K_OUT-sorted.bam
-```
-
-```bash
-snakemake -nrp results/D1K/variant_calling/D1K.vcf results/D5K/variant_calling/D5K.vcf &> test_10.log &
-```
-
-```bash
-sbatch -A snic2018-8-310 -p core -n2 -t 8:00:00 \
--J test -o test_12.out -e test_12.err \
---mail-type=ALL --mail-user=domenico.simone@slu.se<<'EOF'
-#!/usr/bin/bash
-
-module load bioinfo-tools
-module load FastQC
-module load trimmomatic
-module load bwa
-module load samtools
-module load bcftools
-
-snakemake -rp -j 100 --rerun-incomplete results/D1K/variant_calling/D1K.vcf results/D5K/variant_calling/D5K.vcf
-
-EOF
-```
-
-```bash
-sbatch -A snic2018-8-310 -p core -n12 -t 20:00:00 \
--J test -o test_13.out -e test_13.err \
---mail-type=ALL --mail-user=domenico.simone@slu.se<<'EOF'
-#!/usr/bin/bash
-
-module load bioinfo-tools
-module load FastQC
-module load trimmomatic
-module load bwa
-module load samtools
-module load bcftools
-
-snakemake -rp -j 100 results/D2K/variant_calling/D2K.vcf results/D3K/variant_calling/D3K.vcf results/D4K/variant_calling/D4K.vcf
-
-EOF
-```
-
-```bash
-sbatch -A snic2018-8-310 -p core -n 4 -t 20:00:00 \
--J test -o test_15.out -e test_15.err \
---mail-type=ALL --mail-user=domenico.simone@slu.se<<'EOF'
-#!/usr/bin/bash
-
-module load bioinfo-tools
-module load FastQC
-module load trimmomatic
-module load bwa
-module load samtools
-module load bcftools
-
-snakemake -rp -j 100 results/D4K/variant_calling/D4K.vcf
-
-EOF
-```
+Please refer to the [official snakemake tutorial](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for further examples on how to run a snakemake workflow.
