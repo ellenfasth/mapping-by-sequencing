@@ -100,7 +100,7 @@ rule trimmomatic:
     run:
         #trimmomatic_adapters_path = get_trimmomatic_adapters_path()
         shell("export tap=$(which trimmomatic | sed 's/bin\/trimmomatic/share\/trimmomatic\/adapters\/TruSeq3-PE.fa/g'); trimmomatic PE {params.options} -threads {threads} {input.R1} {input.R2} {params.out1P} {params.out1U} {params.out2P} {params.out2U} ILLUMINACLIP:$tap:2:30:10 {params.processing_options} &> {log}")
-        shell("zcat {params.out1U} {params.out2U} | gzip > {output.out1U} && rm {params.out1U} {params.out2U}")
+        shell("( [ -f {params.out1U} ] && zcat {params.out1U} || true; [ -f {params.out2U} ] && zcat {params.out2U} || true ) | gzip > {output.out1U}; rm -f {params.out1U} {params.out2U}")
 
 rule make_bwa_db:
     input:
@@ -118,13 +118,13 @@ rule map:
         # f1 = expand("data/filtered/{sample_ctrl}.R1.fastq.gz", sample_ctrl=ALL),
         # f2 = expand("data/filtered/{sample_ctrl}.R2.fastq.gz", sample_ctrl=ALL)
     output:
-        sam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample}_{library}_OUT.sam.gz")
+        sam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample_ctrl}_{library}_OUT.sam.gz")
         #sam = "results/{sample_ctrl}_{library}/map/{sample_ctrl}_{library}.sam"
     params:
         bwa_index = lambda wildcards, input: input.bwa_index.replace(".amb", ""),
         threads = 4
     run:
-        shell("bwa mem -t {params.threads} {params.bwa_index} {input.f1} {input.f2} | gzip - > {output.sam}")
+        shell("mkdir -p $(dirname {output.sam}) && bwa mem -t {params.threads} {params.bwa_index} {input.f1} {input.f2} | gzip - > {output.sam}")
 
 rule sam2bam:
     input:
@@ -138,7 +138,7 @@ rule sam2bam:
         first_bam  = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.bam".format(wildcards.sample_ctrl)),
         sorted_bam = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.sorted.bam".format(wildcards.sample_ctrl))
     run:
-        shell("zcat {input.sam} > {params.uncompressed_sam} && samtools view -bS -o {params.first_bam} {params.uncompressed_sam}")
+        shell("gunzip -c {input.sam} > {params.uncompressed_sam} && samtools view -bS -o {params.first_bam} {params.uncompressed_sam}")
         shell("samtools sort -T {params.TMP}/{wildcards.sample_ctrl} -o {params.sorted_bam} {params.first_bam}")
         shell("samtools rmdup -s {params.sorted_bam} {output.bam}")
 
