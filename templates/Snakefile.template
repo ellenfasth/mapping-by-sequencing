@@ -1,0 +1,364 @@
+import os, sys
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+from mapping_by_sequencing.pipeline.config_parsers import *
+from mapping_by_sequencing.pipeline.utils import *
+
+configfile: "config.yaml"
+log_dir = config["log_dir"]
+ref_genome = config["ref_genome"]
+snpEff_db = config["snpEff_db"]
+
+datasets_tab = pd.read_table("datasets.tab", sep = "\t", comment='#')
+# change library col type to string for wildcard constraints 
+datasets_tab['library'] = datasets_tab['library'].astype(str) 
+CONTROL, SAMPLES = get_control_samples(datasets_tab)
+ALL = SAMPLES + [CONTROL]
+
+wildcard_constraints:
+    sample      = '|'.join([re.escape(x) for x in list(set(datasets_tab['sample']))]),
+    sample_ctrl = '|'.join([re.escape(x) for x in list(set(datasets_tab['sample']))]),
+    library     = '|'.join([re.escape(x) for x in list(set(datasets_tab['library']))])
+
+rule all:
+    input:
+        fastqc_raw_outputs(datasets_tab=datasets_tab),
+        expand("results/final/all_vs_{ctrl}_ann.vcf", ctrl=CONTROL),
+        expand("results/{sample}/variant_calling/{sample}_filt.vcf", sample=SAMPLES),
+        expand("results/final/chromosome_mapping_{ctrl}.txt", ctrl=CONTROL),
+        "RESULTS_REPORT.txt",
+
+rule symlink_libraries:
+    input:
+        R1 = lambda wildcards: expand(get_datasets_for_symlinks(datasets_tab, sample = wildcards.sample_ctrl, library = wildcards.library, d = "R1")),
+        R2 = lambda wildcards: expand(get_datasets_for_symlinks(datasets_tab, sample = wildcards.sample_ctrl, library = wildcards.library, d = "R2"))
+    output:
+        R1 = "data/reads/{sample_ctrl}_{library}.R1.fastq.gz",
+        R2 = "data/reads/{sample_ctrl}_{library}.R2.fastq.gz",
+    shell:
+        """
+        mkdir -p data/reads/
+        ln -sf {input.R1} {output.R1}
+        ln -sf {input.R2} {output.R2}
+        """
+
+rule fastqc_raw:
+    input:
+        R1 = "data/reads/{sample_ctrl}_{library}.R1.fastq.gz",
+        R2 = "data/reads/{sample_ctrl}_{library}.R2.fastq.gz",
+    output:
+        html_report_R1 = "results/fastqc_raw/{sample_ctrl}_{library}.R1_fastqc.html",
+        html_report_R2 = "results/fastqc_raw/{sample_ctrl}_{library}.R2_fastqc.html",
+    params:
+        outDir = "results/fastqc_raw/",
+    threads: 2
+    log:
+        "logs/fastqc_raw/{sample_ctrl}_{library}.log"
+    shell:
+        """
+        mkdir -p {params.outDir}
+        fastqc -t {threads} -o {params.outDir} {input} &> {log}
+        """
+
+rule trimmomatic:
+    """ QCing and cleaning reads """
+    input:
+        R1 = "data/reads/{sample_ctrl}_{library}.R1.fastq.gz",
+        R2 = "data/reads/{sample_ctrl}_{library}.R2.fastq.gz"
+    output:
+        out1P = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
+        out2P = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz",
+        out1U = "data/reads_filtered/{sample_ctrl}_{library}_qc.U.fastq.gz",
+    params:
+        java_cmd = config['read_processing']['trimmomatic']['java_cmd'],
+        mem = config['read_processing']['trimmomatic']['java_vm_mem'],
+        options = config['read_processing']['trimmomatic']['options'],
+        processing_options = config['read_processing']['trimmomatic']['processing_options'],
+        out1P = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
+        out2P = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz",
+        out1U = "data/reads_filtered/{sample_ctrl}_{library}_qc.1U.fastq.gz",
+        out2U = "data/reads_filtered/{sample_ctrl}_{library}_qc.2U.fastq.gz"
+    threads: 4
+    message:
+        "Filtering read dataset {wildcards.sample_ctrl}_{wildcards.library} with Trimmomatic"
+    log:
+        log_dir + "/trimmomatic/{sample_ctrl}_{library}_trimmomatic.log"
+    run:
+        shell("export tap=$(which trimmomatic | sed 's/bin\/trimmomatic/share\/trimmomatic\/adapters\/TruSeq3-PE.fa/g'); trimmomatic PE {params.options} -threads {threads} {input.R1} {input.R2} {params.out1P} {params.out1U} {params.out2P} {params.out2U} ILLUMINACLIP:$tap:2:30:10 {params.processing_options} &> {log}")
+        shell("( [ -f {params.out1U} ] && zcat {params.out1U} || true; [ -f {params.out2U} ] && zcat {params.out2U} || true ) | gzip > {output.out1U}; rm -f {params.out1U} {params.out2U}")
+
+rule make_bwa_db:
+    input:
+        ref_fasta = "../../data/reference_genomes/{ref_genome}".format(ref_genome=ref_genome)
+    output:
+        bwa_index    = "../../data/reference_genomes/{ref_genome}.amb".format(ref_genome=ref_genome)
+    run:
+        shell("bwa index {input.ref_fasta}")
+
+rule map:
+    input:
+        f1 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R1.fastq.gz",
+        f2 = "data/reads_filtered/{sample_ctrl}_{library}_qc.R2.fastq.gz",
+        bwa_index = "../../data/reference_genomes/{ref_genome}.amb".format(ref_genome=ref_genome)
+    output:
+        sam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample_ctrl}_{library}_OUT.sam.gz")
+    params:
+        bwa_index = lambda wildcards, input: input.bwa_index.replace(".amb", "")
+    threads: 6
+    run:
+        shell("mkdir -p $(dirname {output.sam}) && bwa mem -t {threads} {params.bwa_index} {input.f1} {input.f2} | gzip - > {output.sam}")
+
+rule sam2bam:
+    input:
+        sam = "results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample_ctrl}_{library}_OUT.sam.gz"
+    output:
+        bam = temp("results/{sample_ctrl}/map/OUT_{sample_ctrl}_{library}/{sample_ctrl}_{library}_OUT-sorted.bam")
+    params:
+        TMP = check_tmp_dir("/tmp"),
+        uncompressed_sam  = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.sam".format(wildcards.sample_ctrl)),
+        first_bam  = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.bam".format(wildcards.sample_ctrl)),
+        sorted_bam = lambda wildcards: os.path.join(check_tmp_dir("/tmp"), "{}.sorted.bam".format(wildcards.sample_ctrl))
+    threads: 3
+    run:
+        shell("gunzip -c {input.sam} > {params.uncompressed_sam} && samtools view -@ {threads} -bS -o {params.first_bam} {params.uncompressed_sam}")
+        shell("samtools sort -@ {threads} -T {params.TMP}/{wildcards.sample_ctrl} -o {params.sorted_bam} {params.first_bam}")
+        shell("samtools rmdup -s {params.sorted_bam} {output.bam}")
+
+rule merge_bam:
+    input:
+        sorted_bams = lambda wildcards: get_sample_bamfiles(datasets_tab, res_dir="results", sample = wildcards.sample_ctrl)
+    output:
+        merged_bam = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam",
+        merged_bam_index = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam.bai"
+    params:
+        TMP = check_tmp_dir("/tmp"),
+        temp_merged_bam = lambda wildcards, output: os.path.split(output.merged_bam)[1]
+    threads: 3
+    shell:
+        """
+        samtools merge -@ {threads} -f {params.TMP}/{params.temp_merged_bam} {input}
+        samtools sort -@ {threads} -T {params.TMP}/{wildcards.sample_ctrl} -o {output.merged_bam} {params.TMP}/{params.temp_merged_bam}
+        samtools index {output.merged_bam} {output.merged_bam_index}
+        """
+
+rule SNP_calling:
+    input:
+        bam = "results/{sample_ctrl}/map/{sample_ctrl}_OUT-sorted.bam"
+    output:
+        vcf = "results/{sample_ctrl}/variant_calling/{sample_ctrl}.vcf"
+    params:
+        ref = "../../data/reference_genomes/{ref_genome}".format(ref_genome=ref_genome)
+    threads: 2
+    run:
+        shell("bcftools mpileup -d 1000 -Ou -a FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,FORMAT/SCR,INFO/AD,INFO/ADF,INFO/ADR,INFO/SCR -f {params.ref} {input.bam} | \
+                bcftools call -mv --threads {threads} > {output.vcf}")
+
+rule filter_SNPs:
+    input:
+        vcf = "results/{sample_ctrl}/variant_calling/{sample_ctrl}.vcf"
+    output:
+        vcf = "results/{sample_ctrl}/variant_calling/{sample_ctrl}_filt.vcf"
+    run:
+        filter_vcf(input.vcf, output.vcf)
+
+rule get_mutant_specific_SNPs:
+    input:
+        mutant_snps  = "results/{sample}/variant_calling/{sample}_filt.vcf",
+        control_snps = expand("results/{ctrl}/variant_calling/{ctrl}_filt.vcf", ctrl=CONTROL)
+    output:
+        vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz"
+    run:
+        shell("subtractBed -header -a {input.mutant_snps} -b {input.control_snps} | bgzip -c > {output.vcf}")
+
+rule bgzip_ctrl:
+    input:
+        vcf_ctrl = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf"
+    output:
+        vcf_ctrl = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz",
+        vcf_ctrl_index = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz.csi",
+    run:
+        shell("bgzip < {input.vcf_ctrl} > {output.vcf_ctrl}")
+        shell("bcftools index -f -o {output.vcf_ctrl_index} {output.vcf_ctrl}")
+
+rule index_VCF:
+    input:
+        single_vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz",
+    output:
+        index_vcf = "results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz.csi"
+    threads: 1
+    message: "Compressing and indexing {input.single_vcf}"
+    run:
+        shell("bcftools index -f -o {output.index_vcf} {input.single_vcf}")
+
+rule merge_mutant_specific_SNPs:
+    input:
+        vcf = expand("results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz", sample=SAMPLES, ctrl=CONTROL),
+        index_vcf = expand("results/{sample}/variant_calling/{sample}_{ctrl}_filt.vcf.gz.csi", sample=SAMPLES, ctrl=CONTROL),
+        vcf_ctrl = "results/{ctrl}/variant_calling/{ctrl}_filt.vcf.gz"
+    output:
+        merged_vcf = "results/final/all_vs_{ctrl}.vcf"
+    run:
+        shell("bcftools merge {input.vcf_ctrl} {input.vcf} -O v -o {output.merged_vcf}")
+
+rule fix_chromosome_names:
+    """
+    Automatically detects RefSeq chromosome names and converts them to TAIR format for snpEff compatibility.
+    This rule handles the common issue where reference genomes use NC_* format but snpEff expects 1:, 2:, etc.
+    """
+    input:
+        vcf = "results/final/all_vs_{ctrl}.vcf"
+    output:
+        vcf_corrected = "results/final/all_vs_{ctrl}_corrected.vcf",
+        chromosome_mapping = "results/final/chromosome_mapping_{ctrl}.txt"
+    params:
+        ref_genome = "../../data/reference_genomes/{ref_genome}".format(ref_genome=ref_genome)
+    message: "Checking and fixing chromosome names for snpEff compatibility"
+    run:
+        # Check if reference genome uses RefSeq format (NC_*)
+        shell("""
+        if grep -q "^>NC_" {params.ref_genome}; then
+            echo "RefSeq format detected. Creating chromosome mapping..."
+            # Extract chromosome names and create mapping
+            grep "^>" {params.ref_genome} | sed 's/^>//' | while read line; do
+                chr_name=$(echo "$line" | cut -d' ' -f1)
+                if [[ "$chr_name" == NC_* ]]; then
+                    if [[ "$line" == *"chromosome 1"* ]]; then echo "$chr_name 1"; fi
+                    if [[ "$line" == *"chromosome 2"* ]]; then echo "$chr_name 2"; fi
+                    if [[ "$line" == *"chromosome 3"* ]]; then echo "$chr_name 3"; fi
+                    if [[ "$line" == *"chromosome 4"* ]]; then echo "$chr_name 4"; fi
+                    if [[ "$line" == *"chromosome 5"* ]]; then echo "$chr_name 5"; fi
+                    if [[ "$line" == *"mitochondrion"* ]]; then echo "$chr_name Mt"; fi
+                    if [[ "$line" == *"chloroplast"* ]]; then echo "$chr_name Ch"; fi
+                fi
+            done > {output.chromosome_mapping}
+            
+            # Apply the mapping to convert chromosome names
+            if [ -s {output.chromosome_mapping} ]; then
+                echo "Converting chromosome names..."
+                # Convert mapping file to sed commands and apply
+                sed 's/\\([^ ]*\\) \\(.*\\)/s\\/\\^\\1\\/\\2\\/g/' {output.chromosome_mapping} | sed -f - {input.vcf} > {output.vcf_corrected}
+                echo "Chromosome names converted successfully."
+            else
+                echo "No chromosome mapping created, copying original VCF..."
+                cp {input.vcf} {output.vcf_corrected}
+            fi
+        else
+            echo "TAIR format detected. No conversion needed."
+            cp {input.vcf} {output.vcf_corrected}
+            echo "No conversion needed" > {output.chromosome_mapping}
+        fi
+        """)
+
+rule annotate_mutant_specific_SNPs:
+    input:
+        vcf = "results/final/all_vs_{ctrl}_corrected.vcf"
+    output:
+        vcf = "results/final/all_vs_{ctrl}_ann.vcf",
+        summary_html = "results/final/all_vs_{ctrl}_snpEff_summary.html",
+        genes_txt = "results/final/all_vs_{ctrl}_snpEff_genes.txt"
+    params: 
+        snpEff_db = snpEff_db,
+        workdir = lambda wc: Path("results/final")
+    message: "Annotating variants with snpEff"
+    run:
+        # Run snpEff and capture outputs
+        shell("""
+        cd {params.workdir}
+        snpEff {params.snpEff_db} ../../{input.vcf} > ../../{output.vcf}
+        # snpEff generates these files in the current directory
+        if [ -f snpEff_summary.html ]; then
+            mv snpEff_summary.html ../../{output.summary_html}
+        fi
+        if [ -f snpEff_genes.txt ]; then
+            mv snpEff_genes.txt ../../{output.genes_txt}
+        fi
+        """)
+
+rule generate_results_report:
+    input:
+        annotated_vcf = expand("results/final/all_vs_{ctrl}_ann.vcf", ctrl=CONTROL),
+        snpEff_summary = expand("results/final/all_vs_{ctrl}_snpEff_summary.html", ctrl=CONTROL),
+        snpEff_genes = expand("results/final/all_vs_{ctrl}_snpEff_genes.txt", ctrl=CONTROL),
+        chromosome_mapping = expand("results/final/chromosome_mapping_{ctrl}.txt", ctrl=CONTROL),
+        sample_vcfs = expand("results/{sample}/variant_calling/{sample}_filt.vcf", sample=SAMPLES),
+        bam_files = expand("results/{sample}/map/{sample}_OUT-sorted.bam", sample=SAMPLES + [CONTROL]),
+        bam_indexes = expand("results/{sample}/map/{sample}_OUT-sorted.bam.bai", sample=SAMPLES + [CONTROL]),
+        fastqc_reports = expand("results/fastqc_raw/{sample_ctrl}_{library}.R1_fastqc.html", sample_ctrl=datasets_tab['sample'].unique(), library=datasets_tab['library'].unique())
+    output:
+        report = "RESULTS_REPORT.txt"
+    params:
+        run_name = lambda wc: Path.cwd().name,
+        date = lambda wc: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        samples = lambda wc: SAMPLES,
+        control = lambda wc: CONTROL
+    run:
+        with open(output.report, 'w') as f:
+            f.write("=" * 80 + "\n")
+            f.write("MAPPING-BY-SEQUENCING PIPELINE RESULTS REPORT\n")
+            f.write("=" * 80 + "\n")
+            f.write(f"Run: {params.run_name}\n")
+            f.write(f"Generated: {params.date}\n")
+            f.write(f"Control sample: {params.control}\n")
+            f.write(f"Mutant sample(s): {', '.join(params.samples)}\n")
+            f.write("\n")
+            
+            f.write("🔬 MAIN SCIENTIFIC RESULTS\n")
+            f.write("-" * 40 + "\n")
+            f.write("These are the key files to examine for your mapping-by-sequencing analysis:\n\n")
+            
+            f.write(f"📄 Final annotated variants (VCF):\n")
+            f.write(f"   runs/{params.run_name}/{input.annotated_vcf[0]}\n")
+            f.write(f"   → Contains all variants with functional annotations\n\n")
+            
+            f.write(f"🌐 Variant annotation summary (HTML - open in browser):\n")
+            f.write(f"   runs/{params.run_name}/{input.snpEff_summary[0]}\n")
+            f.write(f"   → Interactive summary of variant effects and statistics\n\n")
+            
+            f.write(f"🧬 Affected genes list:\n")
+            f.write(f"   runs/{params.run_name}/{input.snpEff_genes[0]}\n")
+            f.write(f"   → Text file listing all genes with variants\n\n")
+            
+            f.write("📊 INDIVIDUAL SAMPLE RESULTS\n")
+            f.write("-" * 40 + "\n")
+            
+            f.write(f"Control sample ({params.control}) results:\n")
+            for sample in [params.control]:
+                f.write(f"   Variants: runs/{params.run_name}/results/{sample}/variant_calling/{sample}_filt.vcf\n")
+                f.write(f"   Alignment: runs/{params.run_name}/results/{sample}/map/{sample}_OUT-sorted.bam\n")
+            f.write("\n")
+            
+            for sample in params.samples:
+                f.write(f"Mutant sample ({sample}) results:\n")
+                f.write(f"   Variants: runs/{params.run_name}/results/{sample}/variant_calling/{sample}_filt.vcf\n")
+                f.write(f"   Alignment: runs/{params.run_name}/results/{sample}/map/{sample}_OUT-sorted.bam\n")
+            f.write("\n")
+            
+            f.write("🔍 QUALITY CONTROL\n")
+            f.write("-" * 40 + "\n")
+            f.write("Check these HTML reports for read quality assessment:\n")
+            for sample in datasets_tab['sample'].unique():
+                for library in datasets_tab['library'].unique():
+                    f.write(f"   runs/{params.run_name}/results/fastqc_raw/{sample}_{library}.R1_fastqc.html\n")
+                    f.write(f"   runs/{params.run_name}/results/fastqc_raw/{sample}_{library}.R2_fastqc.html\n")
+            f.write("\n")
+            
+            f.write("📋 RUN DOCUMENTATION\n")
+            f.write("-" * 40 + "\n")
+            f.write(f"   Run summary: runs/{params.run_name}/run_summary.txt\n")
+            f.write(f"   Configuration: runs/{params.run_name}/config.yaml\n")
+            f.write(f"   Sample mapping: runs/{params.run_name}/datasets.tab\n")
+            f.write(f"   Execution logs: runs/{params.run_name}/logs/\n")
+            f.write("\n")
+            
+            f.write("💡 NEXT STEPS\n")
+            f.write("-" * 40 + "\n")
+            f.write("1. Open the snpEff HTML summary in your browser for an overview\n")
+            f.write("2. Examine the final annotated VCF for detailed variant information\n")
+            f.write("3. Check the affected genes list for candidate genes\n")
+            f.write("4. Review quality control reports to assess data quality\n")
+            f.write("5. Use the individual sample VCFs for further analysis if needed\n")
+            f.write("\n")
+            f.write("=" * 80 + "\n")
+
+

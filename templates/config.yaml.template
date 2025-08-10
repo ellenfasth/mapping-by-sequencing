@@ -3,7 +3,7 @@ map_dir:    "map"
 log_dir:    "logs"
 tmp_dir:    "/tmp"
 #workdir:    "test"
-ref_genome: "Arabidopsis_thaliana.fa"
+ref_genome: "myreference-genome.fna"
 snpEff_db:  "Arabidopsis_thaliana"
 
 read_processing:

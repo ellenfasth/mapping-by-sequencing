@@ -1,0 +1,81 @@
+# Sample mapping for E1-E26 to Unknown_CQ226 files
+# Format: E<number>: {R1: filename_1.fq.gz, R2: filename_2.fq.gz}
+
+E1:
+  R1: "Unknown_CQ226-001R0001_1.fq.gz"
+  R2: "Unknown_CQ226-001R0001_2.fq.gz"
+E2:
+  R1: "Unknown_CQ226-001R0002_1.fq.gz"
+  R2: "Unknown_CQ226-001R0002_2.fq.gz"
+E3:
+  R1: "Unknown_CQ226-001R0003_1.fq.gz"
+  R2: "Unknown_CQ226-001R0003_2.fq.gz"
+E4:
+  R1: "Unknown_CQ226-001R0004_1.fq.gz"
+  R2: "Unknown_CQ226-001R0004_2.fq.gz"
+E5:
+  R1: "Unknown_CQ226-001R0005_1.fq.gz"
+  R2: "Unknown_CQ226-001R0005_2.fq.gz"
+E6:
+  R1: "Unknown_CQ226-001R0006_1.fq.gz"
+  R2: "Unknown_CQ226-001R0006_2.fq.gz"
+E7:
+  R1: "Unknown_CQ226-001R0007_1.fq.gz"
+  R2: "Unknown_CQ226-001R0007_2.fq.gz"
+E8:
+  R1: "Unknown_CQ226-001R0008_1.fq.gz"
+  R2: "Unknown_CQ226-001R0008_2.fq.gz"
+E9:
+  R1: "Unknown_CQ226-001R0009_1.fq.gz"
+  R2: "Unknown_CQ226-001R0009_2.fq.gz"
+E10:
+  R1: "Unknown_CQ226-001R0010_1.fq.gz"
+  R2: "Unknown_CQ226-001R0010_2.fq.gz"
+E11:
+  R1: "Unknown_CQ226-001R0011_1.fq.gz"
+  R2: "Unknown_CQ226-001R0011_2.fq.gz"
+E12:
+  R1: "Unknown_CQ226-001R0012_1.fq.gz"
+  R2: "Unknown_CQ226-001R0012_2.fq.gz"
+E13:
+  R1: "Unknown_CQ226-001R0013_1.fq.gz"
+  R2: "Unknown_CQ226-001R0013_2.fq.gz"
+E14:
+  R1: "Unknown_CQ226-001R0014_1.fq.gz"
+  R2: "Unknown_CQ226-001R0014_2.fq.gz"
+E15:
+  R1: "Unknown_CQ226-001R0015_1.fq.gz"
+  R2: "Unknown_CQ226-001R0015_2.fq.gz"
+E16:
+  R1: "Unknown_CQ226-001R0016_1.fq.gz"
+  R2: "Unknown_CQ226-001R0016_2.fq.gz"
+E17:
+  R1: "Unknown_CQ226-001R0017_1.fq.gz"
+  R2: "Unknown_CQ226-001R0017_2.fq.gz"
+E18:
+  R1: "Unknown_CQ226-001R0018_1.fq.gz"
+  R2: "Unknown_CQ226-001R0018_2.fq.gz"
+E19:
+  R1: "Unknown_CQ226-001R0019_1.fq.gz"
+  R2: "Unknown_CQ226-001R0019_2.fq.gz"
+E20:
+  R1: "Unknown_CQ226-001R0020_1.fq.gz"
+  R2: "Unknown_CQ226-001R0020_2.fq.gz"
+E21:
+  R1: "Unknown_CQ226-001R0021_1.fq.gz"
+  R2: "Unknown_CQ226-001R0021_2.fq.gz"
+E22:
+  R1: "Unknown_CQ226-001R0022_1.fq.gz"
+  R2: "Unknown_CQ226-001R0022_2.fq.gz"
+E23:
+  R1: "Unknown_CQ226-001R0023_1.fq.gz"
+  R2: "Unknown_CQ226-001R0023_2.fq.gz"
+E24:
+  R1: "Unknown_CQ226-001R0024_1.fq.gz"
+  R2: "Unknown_CQ226-001R0024_2.fq.gz"
+E25:
+  R1: "Unknown_CQ226-001R0025_1.fq.gz"
+  R2: "Unknown_CQ226-001R0025_2.fq.gz"
+E26:
+  R1: "Unknown_CQ226-001R0026_1.fq.gz"
+  R2: "Unknown_CQ226-001R0026_2.fq.gz"
