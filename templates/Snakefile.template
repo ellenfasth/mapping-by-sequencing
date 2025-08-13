@@ -285,13 +285,7 @@ rule plot_mutation_frequency:
         title = lambda wc: f"Mutation Frequency vs. Chromosome Location - {Path.cwd().name}"
     run:
         shell("""
-        cd {params.workdir}
-        python -c "
-import sys
-sys.path.append('../../mapping_by_sequencing')
-from mapping_by_sequencing.pipeline.plotting import plot_vcf_frequency
-plot_vcf_frequency('../../{input.annotated_vcf}', '../../{output.plot}', '{params.title}')
-        "
+        python -m mapping_by_sequencing.pipeline.plotting {input.annotated_vcf} -o {output.plot} -t "{params.title}" --control {CONTROL} --min-dp 5 --no-show
         """)
 
 

@@ -10,10 +10,20 @@ import numpy as np
 from collections import defaultdict
 from pathlib import Path
 import logging
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
-def parse_vcf_frequency(vcf_file):
+def _detect_sample_columns(header_line: str) -> List[str]:
+    """Return list of sample column names from a VCF header line starting with '#CHROM'."""
+    parts = header_line.strip().split('\t')
+    # Standard VCF has 9 fixed columns; samples start at index 9
+    if len(parts) <= 9:
+        return []
+    return parts[9:]
+
+
+def parse_vcf_frequency(vcf_file: str, control_sample: Optional[str] = None, min_dp: int = 0):
     """
     Parse VCF file to extract mutation frequency and chromosome location.
     
@@ -24,11 +34,23 @@ def parse_vcf_frequency(vcf_file):
         dict: Dictionary with chromosome as key and list of (position, frequency) tuples as value
     """
     mutations = defaultdict(list)
+    sample_names: Optional[List[str]] = None
+    mutant_sample_indices: Optional[List[int]] = None
     
     try:
         with open(vcf_file, 'r') as f:
             for line_num, line in enumerate(f, 1):
                 if line.startswith('#'):
+                    # Capture sample names when we hit the header
+                    if line.startswith('#CHROM'):
+                        sample_names = _detect_sample_columns(line)
+                        if sample_names:
+                            # Determine mutant sample indices (0-based relative to samples)
+                            if control_sample:
+                                mutant_sample_indices = [i for i, name in enumerate(sample_names)
+                                                         if control_sample not in name]
+                            else:
+                                mutant_sample_indices = list(range(len(sample_names)))
                     continue
                     
                 parts = line.strip().split('\t')
@@ -39,26 +61,75 @@ def parse_vcf_frequency(vcf_file):
                 chrom = parts[0]
                 pos = int(parts[1])
                 
-                # Parse genotype information to get frequency
-                format_fields = parts[8].split(':')
-                sample_fields = parts[9].split(':')
-                
-                # Find AD (allele depth) field
-                try:
-                    ad_idx = format_fields.index('AD')
-                    ad_values = sample_fields[ad_idx].split(',')
-                    
-                    if len(ad_values) >= 2:
-                        ref_depth = int(ad_values[0])
-                        alt_depth = int(ad_values[1])
-                        total_depth = ref_depth + alt_depth
-                        
-                        if total_depth > 0:
-                            frequency = (alt_depth / total_depth) * 100
-                            mutations[chrom].append((pos, frequency))
-                except (ValueError, IndexError):
-                    logger.debug(f"Line {line_num}: could not parse AD field, skipping")
+                # Skip if no samples present
+                if len(parts) < 10:
                     continue
+
+                # Parse genotype information to get frequency from mutant samples (exclude control)
+                format_fields = parts[8].split(':')
+                # Identify indices to consider
+                if mutant_sample_indices is None:
+                    # If we have not seen header, assume all sample columns are mutants
+                    num_samples = len(parts) - 9
+                    mutant_sample_indices = list(range(num_samples))
+
+                per_sample_freqs: list[float] = []
+
+                for rel_idx in mutant_sample_indices:
+                    col_idx = 9 + rel_idx
+                    if col_idx >= len(parts):
+                        continue
+                    sample_field_str = parts[col_idx]
+                    if sample_field_str == '.' or sample_field_str == './.':
+                        continue
+                    sample_fields = sample_field_str.split(':')
+
+                    # Build dict of FORMAT -> value
+                    fmt_map = {key: sample_fields[i] if i < len(sample_fields) else None for i, key in enumerate(format_fields)}
+
+                    # Require an ALT genotype (exclude 0/0), so values from mutants without the variant don't drag the average
+                    gt_raw = fmt_map.get('GT') or ''
+                    if '1' not in gt_raw:  # handles 0/1, 1/1, 1|0, 1|1, 0/1/2, etc.
+                        continue
+
+                    # Prefer AD for allele depths
+                    ad_raw = fmt_map.get('AD')
+                    dp_raw = fmt_map.get('DP')
+                    if not ad_raw:
+                        # Try reconstruct from ADF/ADR if available
+                        adf_raw = fmt_map.get('ADF')
+                        adr_raw = fmt_map.get('ADR')
+                        if adf_raw and adr_raw:
+                            try:
+                                adf = [int(x) for x in adf_raw.split(',') if x != '.']
+                                adr = [int(x) for x in adr_raw.split(',') if x != '.']
+                                ad_list = [a + b for a, b in zip(adf, adr)]
+                                ad_raw = ','.join(str(x) for x in ad_list)
+                            except Exception:
+                                ad_raw = None
+                    if not ad_raw:
+                        continue
+                    try:
+                        ad_vals = [int(x) for x in ad_raw.split(',') if x != '.']
+                        if len(ad_vals) < 2:
+                            continue
+                        ref_depth = ad_vals[0]
+                        alt_depth = sum(ad_vals[1:])  # support multi-allelic
+                        total_depth = ref_depth + alt_depth
+                        # Fallback to DP if AD seems inconsistent
+                        if (dp_raw and dp_raw != '.' and dp_raw.isdigit() and int(dp_raw) > total_depth):
+                            total_depth = int(dp_raw)
+                        if total_depth < max(1, min_dp):
+                            continue
+                        freq = alt_depth / total_depth
+                        per_sample_freqs.append(freq)
+                    except Exception:
+                        logger.debug(f"Line {line_num}: could not parse AD/DP fields for sample idx {rel_idx}, skipping")
+                        continue
+
+                if per_sample_freqs:
+                    frequency_pct = float(np.mean(per_sample_freqs)) * 100.0
+                    mutations[chrom].append((pos, frequency_pct))
                     
     except FileNotFoundError:
         logger.error(f"VCF file not found: {vcf_file}")
@@ -91,7 +162,12 @@ def create_frequency_plot(mutations, output_file=None, title="Mutation Frequency
     
     # Set up the plot
     num_chroms = len(mutations)
-    fig, axes = plt.subplots(num_chroms, 1, figsize=(figsize[0], figsize[1] * num_chroms))
+    fig, axes = plt.subplots(
+        num_chroms,
+        1,
+        figsize=(figsize[0], figsize[1] * num_chroms),
+        constrained_layout=True,
+    )
     if num_chroms == 1:
         axes = [axes]
     
@@ -139,8 +215,7 @@ def create_frequency_plot(mutations, output_file=None, title="Mutation Frequency
                     transform=axes[i].transAxes, verticalalignment='top',
                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
-    plt.suptitle(title, fontsize=16, y=0.98)
-    plt.tight_layout()
+    fig.suptitle(title, fontsize=16)
     
     if output_file:
         try:
@@ -154,7 +229,7 @@ def create_frequency_plot(mutations, output_file=None, title="Mutation Frequency
     
     return fig
 
-def plot_vcf_frequency(vcf_file, output_file=None, title=None, show_plot=False, **kwargs):
+def plot_vcf_frequency(vcf_file, output_file=None, title=None, show_plot=False, control_sample: Optional[str] = None, min_dp: int = 0, **kwargs):
     """
     Convenience function to parse VCF and create frequency plot.
     
@@ -172,7 +247,7 @@ def plot_vcf_frequency(vcf_file, output_file=None, title=None, show_plot=False, 
         title = f"Mutation Frequency vs. Chromosome Location - {vcf_path.parent.name}"
     
     logger.info(f"Parsing VCF file: {vcf_file}")
-    mutations = parse_vcf_frequency(vcf_file)
+    mutations = parse_vcf_frequency(vcf_file, control_sample=control_sample, min_dp=min_dp)
     
     if not mutations:
         logger.warning("No mutations found in VCF file")
@@ -227,6 +302,8 @@ def main():
     parser.add_argument('-o', '--output', help='Output plot file path (optional)')
     parser.add_argument('-t', '--title', help='Plot title (optional)')
     parser.add_argument('--no-show', action='store_true', help='Do not display the plot (useful for headless environments)')
+    parser.add_argument('--control', help='Name of control sample (to exclude from frequency calculation)')
+    parser.add_argument('--min-dp', type=int, default=0, help='Minimum total depth required to include a site (default: 0)')
     parser.add_argument('--dpi', type=int, default=300, help='DPI for saved plots (default: 300)')
     parser.add_argument('--figsize', nargs=2, type=float, default=[12, 8], 
                        help='Figure size as width height (default: 12 8)')
@@ -243,6 +320,8 @@ def main():
             output_file=args.output, 
             title=args.title,
             show_plot=not args.no_show,
+            control_sample=args.control,
+            min_dp=args.min_dp,
             dpi=args.dpi,
             figsize=tuple(args.figsize)
         )
