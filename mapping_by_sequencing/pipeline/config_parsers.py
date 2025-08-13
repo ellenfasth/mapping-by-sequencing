@@ -21,6 +21,7 @@ def get_datasets_for_symlinks(df, sample = None, library = None, d = None, infol
 def get_control_samples(df):
     """
     output is CTRL as a string, and SAMPLES as a list
+    Supports 1 control and multiple mutants
     """
     ctrl = set()
     samples = set()
@@ -33,6 +34,8 @@ def get_control_samples(df):
         sys.exit("No control specified in the datasets.tab file!")
     elif len(ctrl) > 1:
         sys.exit(">1 controls specified in the datasets.tab file!")
+    if len(samples) < 1:
+        sys.exit("No mutant samples specified in the datasets.tab file!")
     return list(ctrl)[0], list(samples)
 
 def fastqc_raw_outputs(datasets_tab = None, analysis_tab = None, infolder="data/reads", outfolder="results/fastqc_raw", ext=".fastq.gz"):

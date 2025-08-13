@@ -275,12 +275,33 @@ rule annotate_mutant_specific_SNPs:
         fi
         """)
 
+rule plot_mutation_frequency:
+    input:
+        annotated_vcf = expand("results/final/all_vs_{ctrl}_ann.vcf", ctrl=CONTROL)
+    output:
+        plot = "results/final/mutation_frequency_plot.png"
+    params:
+        run_name = lambda wc: Path.cwd().name,
+        title = lambda wc: f"Mutation Frequency vs. Chromosome Location - {Path.cwd().name}"
+    run:
+        shell("""
+        cd {params.workdir}
+        python -c "
+import sys
+sys.path.append('../../mapping_by_sequencing')
+from mapping_by_sequencing.pipeline.plotting import plot_vcf_frequency
+plot_vcf_frequency('../../{input.annotated_vcf}', '../../{output.plot}', '{params.title}')
+        "
+        """)
+
+
 rule generate_results_report:
     input:
         annotated_vcf = expand("results/final/all_vs_{ctrl}_ann.vcf", ctrl=CONTROL),
         snpEff_summary = expand("results/final/all_vs_{ctrl}_snpEff_summary.html", ctrl=CONTROL),
         snpEff_genes = expand("results/final/all_vs_{ctrl}_snpEff_genes.txt", ctrl=CONTROL),
         chromosome_mapping = expand("results/final/chromosome_mapping_{ctrl}.txt", ctrl=CONTROL),
+        mutation_plot = "results/final/mutation_frequency_plot.png",
         sample_vcfs = expand("results/{sample}/variant_calling/{sample}_filt.vcf", sample=SAMPLES),
         bam_files = expand("results/{sample}/map/{sample}_OUT-sorted.bam", sample=SAMPLES + [CONTROL]),
         bam_indexes = expand("results/{sample}/map/{sample}_OUT-sorted.bam.bai", sample=SAMPLES + [CONTROL]),
@@ -318,6 +339,10 @@ rule generate_results_report:
             f.write(f"🧬 Affected genes list:\n")
             f.write(f"   runs/{params.run_name}/{input.snpEff_genes[0]}\n")
             f.write(f"   → Text file listing all genes with variants\n\n")
+            
+            f.write(f"📊 Mutation frequency plot:\n")
+            f.write(f"   runs/{params.run_name}/{input.mutation_plot}\n")
+            f.write(f"   → Visual representation of mutation frequency vs. chromosome location\n\n")
             
             f.write("📊 INDIVIDUAL SAMPLE RESULTS\n")
             f.write("-" * 40 + "\n")
@@ -358,7 +383,7 @@ rule generate_results_report:
             f.write("3. Check the affected genes list for candidate genes\n")
             f.write("4. Review quality control reports to assess data quality\n")
             f.write("5. Use the individual sample VCFs for further analysis if needed\n")
+            f.write("6. View the mutation frequency plot for visual analysis\n")
             f.write("\n")
             f.write("=" * 80 + "\n")
-
 

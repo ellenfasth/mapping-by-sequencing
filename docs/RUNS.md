@@ -72,6 +72,8 @@ The system currently has 26 samples available (E1-E26):
 - **E1**: Control sample
 - **E2-E26**: Mutated samples (EMS mutagenesis)
 
+Each run compares 1 control sample against 2 mutant samples for comprehensive analysis.
+
 Each sample corresponds to specific read files:
 - E1 → `Unknown_CQ226-001R0001_1.fq.gz` / `Unknown_CQ226-001R0001_2.fq.gz`
 - E2 → `Unknown_CQ226-001R0002_1.fq.gz` / `Unknown_CQ226-001R0002_2.fq.gz`
@@ -81,11 +83,11 @@ Each sample corresponds to specific read files:
 
 Each run directory contains:
 ```
-run_YYYYMMDD_SAMPLE1_vs_SAMPLE2/
+run_YYYYMMDD_CONTROL_vs_MUTANT1_vs_MUTANT2/
 ├── Snakefile              # Run-specific pipeline definition
 ├── config.yaml            # Run-specific configuration
 ├── data/
-│   └── datasets.tab      # Run-specific sample configuration (2 samples only)
+│   └── datasets.tab      # Run-specific sample configuration (1 control + 2 mutants)
 ├── run_summary.txt        # Run documentation
 ├── results/               # Pipeline outputs (created during execution)
 └── logs/                  # Execution logs (created during execution)
@@ -101,19 +103,19 @@ run_YYYYMMDD_SAMPLE1_vs_SAMPLE2/
 
 ## Usage Examples
 
-### Example 1: E1 vs E19 (Control vs Mutant)
+### Example 1: E1 vs E19 vs E20 (Control vs Two Mutants)
 ```bash
 # Configure
-python scripts/run_manager.py configure E1 E19
+python scripts/run_manager.py configure E1 E19 E20
 
 # Run
-python scripts/run_manager.py run --run run_20250810_E1_vs_E19
+python scripts/run_manager.py run --run run_20250810_E1_vs_E19_vs_E20
 ```
 
-### Example 2: E2 vs E20 (Two Mutants)
+### Example 2: E1 vs E2 vs E3 (Control vs Two Different Mutants)
 ```bash
 # Configure
-python scripts/run_manager.py configure E2 E20
+python scripts/run_manager.py configure E1 E2 E3
 
 # Run
 python scripts/run_manager.py run --run run_20250810_E2_vs_E20

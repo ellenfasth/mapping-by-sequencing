@@ -44,9 +44,9 @@ class RunManager:
         # Create runs directory if it doesn't exist
         self.runs_dir.mkdir(exist_ok=True)
     
-    def configure_run(self, sample1: str, sample2: str):
-        """Configure a new run: sample1=control, sample2=mutated"""
-        print(f"🔍 Configuring run: {sample1} (control) vs {sample2} (mutated)")
+    def configure_run(self, control_sample: str, mutant1: str, mutant2: str):
+        """Configure a new run: control_sample=control, mutant1=mutated, mutant2=mutated"""
+        print(f"🔍 Configuring run: {control_sample} (control) vs {mutant1} (mutant1) vs {mutant2} (mutant2)")
         
         # Load sample mapping
         sample_mapping_file = self.master_data_dir / "sample_mapping.yaml"
@@ -61,13 +61,18 @@ class RunManager:
             # Validate samples exist in mapping
             available_samples = list(sample_mapping.keys())
             
-            if sample1 not in available_samples:
-                print(f"❌ Sample '{sample1}' not found")
+            if control_sample not in available_samples:
+                print(f"❌ Control sample '{control_sample}' not found")
                 print(f"Available: {', '.join(available_samples)}")
                 sys.exit(1)
             
-            if sample2 not in available_samples:
-                print(f"❌ Sample '{sample2}' not found")
+            if mutant1 not in available_samples:
+                print(f"❌ Mutant sample 1 '{mutant1}' not found")
+                print(f"Available: {', '.join(available_samples)}")
+                sys.exit(1)
+                
+            if mutant2 not in available_samples:
+                print(f"❌ Mutant sample 2 '{mutant2}' not found")
                 print(f"Available: {', '.join(available_samples)}")
                 sys.exit(1)
                 
@@ -76,7 +81,7 @@ class RunManager:
             sys.exit(1)
         
         # Generate run name
-        run_name = f"run_{datetime.now().strftime('%Y%m%d')}_{sample1}_vs_{sample2}"
+        run_name = f"run_{datetime.now().strftime('%Y%m%d')}_{control_sample}_vs_{mutant1}_vs_{mutant2}"
         run_dir = self.runs_dir / run_name
         
         if run_dir.exists():
@@ -109,31 +114,34 @@ class RunManager:
             print("❌ Config template not found")
             sys.exit(1)
         
-        # Create run-specific datasets.tab using actual sample names (e.g., E1/E19)
+        # Create run-specific datasets.tab using actual sample names (e.g., E1/E19/E20)
         run_datasets = pd.DataFrame({
-            'sample': [sample1, sample2],
-            'sample_type': ['control', 'mutated'],
-            'library': [1, 1],
+            'sample': [control_sample, mutant1, mutant2],
+            'sample_type': ['control', 'mutated', 'mutated'],
+            'library': [1, 1, 1],
             'R1': [
-                str(self.repo_root / "data" / "reads" / sample_mapping[sample1]['R1']),
-                str(self.repo_root / "data" / "reads" / sample_mapping[sample2]['R1'])
+                str(self.repo_root / "data" / "reads" / sample_mapping[control_sample]['R1']),
+                str(self.repo_root / "data" / "reads" / sample_mapping[mutant1]['R1']),
+                str(self.repo_root / "data" / "reads" / sample_mapping[mutant2]['R1'])
             ],
             'R2': [
-                str(self.repo_root / "data" / "reads" / sample_mapping[sample1]['R2']),
-                str(self.repo_root / "data" / "reads" / sample_mapping[sample2]['R2'])
+                str(self.repo_root / "data" / "reads" / sample_mapping[control_sample]['R2']),
+                str(self.repo_root / "data" / "reads" / sample_mapping[mutant1]['R2']),
+                str(self.repo_root / "data" / "reads" / sample_mapping[mutant2]['R2'])
             ]
         })
 
         run_datasets.to_csv(run_dir / "datasets.tab", sep='\t', index=False)
-        print(f"📊 Created datasets.tab (control={sample1}, mutated={sample2})")
+        print(f"📊 Created datasets.tab (control={control_sample}, mutant1={mutant1}, mutant2={mutant2})")
         
         # Create summary
         summary = f"""# Run Summary: {run_name}
 Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Samples:
-- {sample1} (control)
-- {sample2} (mutated)
+- {control_sample} (control)
+- {mutant1} (mutant1)
+- {mutant2} (mutant2)
 
 To run: mbs run {run_name}
 """
@@ -278,8 +286,8 @@ def main():
         description="Mapping-by-sequencing Pipeline Run Manager",
         epilog="""
 Examples:
-  python scripts/run_manager.py configure E1 E19
-  python scripts/run_manager.py run run_20250810_E1_vs_E19
+  python scripts/run_manager.py configure E1 E19 E20
+  python scripts/run_manager.py run run_20250810_E1_vs_E19_vs_E20
   python scripts/run_manager.py list
         """
     )
@@ -288,8 +296,9 @@ Examples:
     
     # Configure command
     configure_parser = subparsers.add_parser('configure', help='Configure new run')
-    configure_parser.add_argument('sample1', help='Control sample (e.g., E1)')
-    configure_parser.add_argument('sample2', help='Mutated sample (e.g., E19)')
+    configure_parser.add_argument('control_sample', help='Control sample (e.g., E1)')
+    configure_parser.add_argument('mutant1', help='First mutant sample (e.g., E19)')
+    configure_parser.add_argument('mutant2', help='Second mutant sample (e.g., E20)')
     
     # Run command  
     run_parser = subparsers.add_parser('run', help='Run pipeline')
@@ -314,7 +323,7 @@ Examples:
     manager = RunManager()
     
     if args.command == 'configure':
-        manager.configure_run(args.sample1, args.sample2)
+        manager.configure_run(args.control_sample, args.mutant1, args.mutant2)
     elif args.command == 'run':
         manager.run_pipeline(args.run_name, cores=args.cores)
     elif args.command == 'list':

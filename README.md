@@ -126,6 +126,7 @@ E26:
 - **E1**: Control sample (sample_type: control)
 - **E2-E26**: Mutated samples (sample_type: mutated)
 - All files should be placed in `data/reads/`
+- Each run compares 1 control sample against 2 mutant samples
 
 ## Running the pipeline
 
@@ -136,9 +137,9 @@ E26:
    conda activate mbs
    ```
 
-2. **Configure a new run** (pick 2 samples to compare):
+2. **Configure a new run** (pick 1 control and 2 mutants to compare):
    ```bash
-   mbs configure E1 E19
+   mbs configure E1 E19 E20
    ```
 
 3. **Run the pipeline:**
